@@ -1,0 +1,23 @@
+##spdk
+
+**普通IO过程
+
+![io](https://img-blog.csdn.net/20180718171916830?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzM5MzMzODE2/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70)
+![bio](https://img-blog.csdn.net/20180718171903229?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzM5MzMzODE2/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70)
+  
+**read/write函数->文件系统->bio->block层**
+
+  块设备中有扇区，比如硬盘，能操作的最小单位就是扇区（最小可寻址单元）；而块是固定大小的数据片，其大小需要是扇区的整数倍，**内核**进行了更进一步的限制，让块是扇区的2的整数倍，
+且不超过页的大小（？？？？？）。
+  page是缓存页，linux中所有文件都被分为了一系列page
+![page](https://img-blog.csdn.net/20180717101245549?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2N4eV9jaGVu/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70)
+  文件->page；块设备->扇区；内核文件系统->块；
+  扇区<块<page；
+  其中，page和块之间的联系者是buffer_head，即  page<->buffer_head<->块
+![buffer_head](https://img-blog.csdn.net/20180717101456180?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2N4eV9jaGVu/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70)
+  buffer_head 结构过大（现在已经缩减了很多），用 buffer head 来操作 I/O 数据太复杂，kernel 更喜欢根据 page 来工作（这样性能也更好）；另一个问题是一个大的 buffer_head 常被用来描述单独的 buffer，而且 buffer 还很可能比一个页还小，这样就会造成效率低下；第三个问题是 buffer_head 只能描述一个 buffer，这样大块的 I/O 操作常被分散为很多个 buffer_head，这样会增加额外占用的空间。因此 2.6 开始的 kernel （实际 2.5 测试版的 kernel 中已经开始引入）使用 bio 结构直接处理 page 和地址空间，而不是 buffer。
+  于是诞生了bio
+  
+  
+  合并后的request会放入每个device对应的queue（一个机械硬盘即使有多个分区，也只有一个queue）里，之后，磁盘设备驱动程序通过调用peek_request从queue里取出request，进行下一步的处理。  
+设备驱动程序要做的事情就是从request_queue里面取出请求，然后操作硬件设备，逐个去执行这些请求。
